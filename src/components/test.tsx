@@ -47,26 +47,27 @@ export const Products = ({
   const scrollRef = useRef<HTMLDivElement>(null);
   const loadingRef = useRef(false);
 
+  // Load products function
   const loadProducts = useCallback(async (pageNum: number) => {
     if (loadingRef.current) return;
-
+    
     loadingRef.current = true;
     setLoading(true);
     setError(null);
 
     try {
       const response = await fetch(
-        `/products?page=${pageNum}&limit=${PAGE_LIMIT}`,
+        `/products?page=${pageNum}&limit=${PAGE_LIMIT}`
       );
-
+      
       if (!response.ok) {
         throw new Error("Failed to fetch products");
       }
 
       const data = await response.json();
-
-      setProducts((prev) =>
-        pageNum === 0 ? data.products : [...prev, ...data.products],
+      
+      setProducts((prev) => 
+        pageNum === 0 ? data.products : [...prev, ...data.products]
       );
       setHasMore(data.hasMore);
       setPage(pageNum);
@@ -78,10 +79,12 @@ export const Products = ({
     }
   }, []);
 
+  // Initial load
   useEffect(() => {
     loadProducts(0);
   }, [loadProducts]);
 
+  // Scroll handler for infinite scroll
   const endReached = useCallback(() => {
     if (!loading && hasMore && !loadingRef.current) {
       loadProducts(page + 1);
@@ -98,45 +101,57 @@ export const Products = ({
     }
   }, [endReached]);
 
-  //so i did just infinite scroll ig its good enough and since its last day i am gonna try to do rest of the challenges today.
-
-  function addToCart(productId: number, quantity: number) {
-    setProducts(
-      products.map((product) => {
-        if (product.id === productId) {
-          return {
-            ...product,
-            loading: true,
-          };
-        }
-        return product;
-      }),
+  // Add to cart with proper state management
+  const addToCart = useCallback((productId: number, quantity: number) => {
+    // Optimistic update - show loading on specific product
+    setProducts((prevProducts) =>
+      prevProducts.map((product) =>
+        product.id === productId
+          ? { ...product, loading: true }
+          : product
+      )
     );
+
     fetch("/cart", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ productId, quantity }),
-    }).then(async (response) => {
-      if (response.ok) {
-        const cart = await response.json();
-        setProducts(
-          products.map((product) => {
-            if (product.id === productId) {
-              return {
-                ...product,
-                itemInCart: (product.itemInCart || 0) + quantity,
-                loading: false,
-              };
-            }
-            return product;
-          }),
+    })
+      .then(async (response) => {
+        if (response.ok) {
+          const cart = await response.json();
+          
+          setProducts((prevProducts) =>
+            prevProducts.map((product) =>
+              product.id === productId
+                ? {
+                    ...product,
+                    itemInCart: (product.itemInCart || 0) + quantity,
+                    loading: false,
+                  }
+                : product
+            )
+          );
+          
+          onCartChange(cart);
+        } else {
+          throw new Error("Failed to update cart");
+        }
+      })
+      .catch((err) => {
+        console.error("Cart update failed:", err);
+        // Revert loading state on error
+        setProducts((prevProducts) =>
+          prevProducts.map((product) =>
+            product.id === productId
+              ? { ...product, loading: false }
+              : product
+          )
         );
-        onCartChange(cart);
-      }
-    });
-  }
+      });
+  }, [onCartChange]);
 
   return (
     <Box
@@ -159,43 +174,58 @@ export const Products = ({
         ref={scrollRef}
         onScroll={onScroll}
       >
-        <Grid container spacing={2} p={2} justifyContent="center" height="100%">
-          {error && products.length === 0 && (
-            <Box p={4}>
-              <Alert
-                severity="error"
-                onClose={() => {
-                  setError(null);
-                  loadProducts(0);
-                }}
-              >
-                {error}
-              </Alert>
-            </Box>
-          )}
-          {loading && products.length === 0 ? (
-            // added some cases loading state etc. still need to make 1st challenge to make products load as person scroll.
-            <Loading />
-          ) : products.length === 0 ? (
-            <Typography variant="h6">No products found</Typography>
-          ) : (
-            products.map((product) => (
-              // fixed key error by adding key prop to Grid and put all components in components directory.
-              <Grid key={product.id} item xs={4}>
-                {/* Do not remove this */}
+        {/* Error State */}
+        {error && products.length === 0 && (
+          <Box p={4}>
+            <Alert 
+              severity="error" 
+              onClose={() => {
+                setError(null);
+                loadProducts(0);
+              }}
+            >
+              {error}
+            </Alert>
+          </Box>
+        )}
+
+        {/* Initial Loading State */}
+        {loading && products.length === 0 && <Loading />}
+
+        {/* Empty State */}
+        {!loading && !error && products.length === 0 && (
+          <Box
+            display="flex"
+            justifyContent="center"
+            alignItems="center"
+            height="100%"
+            p={4}
+          >
+            <Typography variant="h6" color="text.secondary">
+              No products found
+            </Typography>
+          </Box>
+        )}
+
+        {/* Products Grid */}
+        {products.length > 0 && (
+          <Grid container spacing={2} p={2} justifyContent="center">
+            {products.map((product) => (
+              <Grid key={product.id} item xs={12} sm={6} md={4}>
                 <HeavyComponent />
-                <Card style={{ width: "100%" }}>
+                <Card style={{ width: "100%", height: "100%" }}>
                   <CardMedia
                     component="img"
                     height="150"
                     image={product.imageUrl}
+                    alt={product.name}
                   />
                   <CardContent>
                     <Typography gutterBottom variant="h6" component="div">
                       {product.name}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      Lorem ipsum dolor sit amet, consectetur adipiscing elit,
+                      Lorem ipsum dolor sit amet, consectetur adipiscing elit
                     </Typography>
                   </CardContent>
                   <CardActions>
@@ -215,13 +245,15 @@ export const Products = ({
                         right={0}
                         top={0}
                         bottom={0}
-                        textAlign="center"
+                        display="flex"
+                        justifyContent="center"
+                        alignItems="center"
                       >
                         {product.loading && <CircularProgress size={20} />}
                       </Box>
                       <IconButton
-                        disabled={product.loading}
-                        aria-label="delete"
+                        disabled={product.loading || product.itemInCart === 0}
+                        aria-label="remove from cart"
                         size="small"
                         onClick={() => addToCart(product.id, -1)}
                       >
@@ -234,7 +266,7 @@ export const Products = ({
 
                       <IconButton
                         disabled={product.loading}
-                        aria-label="add"
+                        aria-label="add to cart"
                         size="small"
                         onClick={() => addToCart(product.id, 1)}
                       >
@@ -244,35 +276,37 @@ export const Products = ({
                   </CardActions>
                 </Card>
               </Grid>
-            ))
-          )}
-          {loading && products.length > 0 && (
-            <Grid item xs={12}>
-              <Box display="flex" justifyContent="center" p={4}>
-                <CircularProgress />
-              </Box>
-            </Grid>
-          )}
-          {!hasMore && products.length > 0 && !loading && (
-            <Grid item xs={12}>
-              <Box display="flex" justifyContent="center" p={4}>
-                <Typography variant="body2" color="text.secondary">
-                  You've reached the end
-                </Typography>
-              </Box>
-            </Grid>
-          )}
+            ))}
+          </Grid>
+        )}
 
-          {error && products.length > 0 && (
-            <Grid item xs={12}>
-              <Box p={2}>
-                <Alert severity="error" onClose={() => setError(null)}>
-                  {error}
-                </Alert>
-              </Box>
-            </Grid>
-          )}
-        </Grid>
+        {/* Loading More Indicator */}
+        {loading && products.length > 0 && (
+          <Box display="flex" justifyContent="center" p={4}>
+            <CircularProgress />
+          </Box>
+        )}
+
+        {/* End of List Message */}
+        {!hasMore && products.length > 0 && !loading && (
+          <Box display="flex" justifyContent="center" p={4}>
+            <Typography variant="body2" color="text.secondary">
+              You've reached the end
+            </Typography>
+          </Box>
+        )}
+
+        {/* Error while loading more */}
+        {error && products.length > 0 && (
+          <Box p={2}>
+            <Alert 
+              severity="error" 
+              onClose={() => setError(null)}
+            >
+              {error}
+            </Alert>
+          </Box>
+        )}
       </Box>
     </Box>
   );

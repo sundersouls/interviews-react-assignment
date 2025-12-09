@@ -2,7 +2,6 @@ import { Cart, Products } from "./components/Products.tsx";
 import { Box, CssBaseline } from "@mui/material";
 import SearchAppBar from "./components/SearchAppBar.tsx";
 import { Categories } from "./components/Categories.tsx";
-import ScrollView from "./components/ScrollView.tsx";
 import { useState } from "react";
 
 function App() {
@@ -21,9 +20,7 @@ function App() {
       />
       <Box flex={1} display="flex" flexDirection="row">
         <Categories />
-        <ScrollView>
-          <Products onCartChange={onCartChange} />
-        </ScrollView>
+        <Products onCartChange={onCartChange} />
       </Box>
     </Box>
   );
