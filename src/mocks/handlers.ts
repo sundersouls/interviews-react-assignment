@@ -73,6 +73,10 @@ export const handlers = [
     const category = url.searchParams.get("category");
     const page = url.searchParams.get("page") || "0";
     const limit = url.searchParams.get("limit") || "10";
+    // am i allowed to change this to implement min max price or i need to do it only in frontend i ma gonna do it here
+    const minPrice = url.searchParams.get("minPrice");
+    const maxPrice = url.searchParams.get("maxPrice");
+    const sort = url.searchParams.get("sortBy");
 
     console.log(products);
 
@@ -86,19 +90,42 @@ export const handlers = [
       if (category && product.category !== category) {
         return false;
       }
+      if (minPrice && product.price < parseFloat(minPrice)) {
+        return false;
+      }
+      if (maxPrice && product.price > parseFloat(maxPrice)) {
+        return false;
+      }
       return true;
     });
+
+    const SortedProducts = filteredProducts.sort((a, b) => {
+      if (sort === "price_asc") {
+        return a.price - b.price;
+      }
+      if (sort === "price_desc") {
+        return b.price - a.price;
+      }
+      if (sort === "name_asc") {
+        return a.name.localeCompare(b.name);
+      }
+      if (sort === "name_desc") {
+        return b.name.localeCompare(a.name);
+      }
+      return 0;
+    });
+
     const realPage = parseInt(page, 10) || 0;
     const realLimit = parseInt(limit, 10) || 10;
-    const pageList = filteredProducts.slice(
+    const pageList = SortedProducts.slice(
       realPage * realLimit,
       (realPage + 1) * realLimit,
     );
 
     return HttpResponse.json({
       products: pageList,
-      total: filteredProducts.length,
-      hasMore: realPage * realLimit + realLimit < filteredProducts.length,
+      total: SortedProducts.length,
+      hasMore: realPage * realLimit + realLimit < SortedProducts.length,
     });
   }),
   http.post<never, { productId: number; quantity: number }>(

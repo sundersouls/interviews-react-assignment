@@ -1,10 +1,11 @@
-import { setupWorker } from 'msw/browser'
-import { handlers } from './handlers'
+import { setupWorker } from "msw/browser";
+import { handlers } from "./handlers";
 
-export const worker = setupWorker(...handlers)
-
-
+export const worker = setupWorker(...handlers);
 
 export function enableMockServiceWorker() {
-  return worker.start()
+  // changed here so my images will load without spamming in console.
+  return worker.start({
+    onUnhandledRequest: "bypass",
+  });
 }

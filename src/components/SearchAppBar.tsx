@@ -7,6 +7,8 @@ import InputBase from "@mui/material/InputBase";
 import SearchIcon from "@mui/icons-material/Search";
 import { Badge } from "@mui/material";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
+import { useState, useEffect, useRef } from "react";
+import { useFilterStore } from "../store/filterStore";
 
 const Search = styled("div")(({ theme }) => ({
   position: "relative",
@@ -39,8 +41,8 @@ const StyledInputBase = styled(InputBase)(({ theme }) => ({
   width: "100%",
   "& .MuiInputBase-input": {
     padding: theme.spacing(1, 1, 1, 0),
-    // vertical padding + font size from searchIcon
     paddingLeft: `calc(1em + ${theme.spacing(4)})`,
+    paddingRight: `calc(1em + ${theme.spacing(4)})`,
     transition: theme.transitions.create("width"),
     [theme.breakpoints.up("sm")]: {
       width: "12ch",
@@ -58,6 +60,35 @@ export default function SearchAppBar({
   quantity: number;
   price: number;
 }) {
+  const { searchQuery, setSearchQuery } = useFilterStore();
+  const [localSearch, setLocalSearch] = useState(searchQuery);
+  const debounceTimeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    setLocalSearch(searchQuery);
+  }, [searchQuery]);
+
+  // Update store after user stops typing
+  const handleSearchChange = (value: string) => {
+    setLocalSearch(value);
+
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
+    }
+
+    debounceTimeoutRef.current = setTimeout(() => {
+      setSearchQuery(value);
+    }, 300);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
+    };
+  }, []);
+
   return (
     <Box>
       <AppBar position="relative">
@@ -77,6 +108,8 @@ export default function SearchAppBar({
             <StyledInputBase
               placeholder="Search…"
               inputProps={{ "aria-label": "search" }}
+              value={localSearch}
+              onChange={(e) => handleSearchChange(e.target.value)}
             />
           </Search>
           <Box display="flex" flexDirection="row" mx={2}>

@@ -10,11 +10,19 @@ import {
   Typography,
   CircularProgress,
   Alert,
+  Chip,
+  Button,
+  Select,
+  MenuItem,
+  TextField,
+  FormControl,
 } from "@mui/material";
 import RemoveIcon from "@mui/icons-material/Remove";
 import AddIcon from "@mui/icons-material/Add";
+import CloseIcon from "@mui/icons-material/Close";
 import Loading from "./Loading.tsx";
 import { HeavyComponent } from "./HeavyComponent.tsx";
+import { useFilterStore } from "../store/filterStore";
 
 export type Product = {
   id: number;
@@ -47,40 +55,86 @@ export const Products = ({
   const scrollRef = useRef<HTMLDivElement>(null);
   const loadingRef = useRef(false);
 
-  const loadProducts = useCallback(async (pageNum: number) => {
-    if (loadingRef.current) return;
+  const {
+    searchQuery,
+    selectedCategory,
+    minPrice,
+    maxPrice,
+    sortBy,
+    setMinPrice,
+    setMaxPrice,
+    setSortBy,
+    setSearchQuery,
+    setSelectedCategory,
+    clearFilters,
+    hasActiveFilters,
+  } = useFilterStore();
 
-    loadingRef.current = true;
-    setLoading(true);
-    setError(null);
+  const loadProducts = useCallback(
+    async (pageNum: number) => {
+      if (loadingRef.current) return;
 
-    try {
-      const response = await fetch(
-        `/products?page=${pageNum}&limit=${PAGE_LIMIT}`,
-      );
+      loadingRef.current = true;
+      setLoading(true);
+      setError(null);
 
-      if (!response.ok) {
-        throw new Error("Failed to fetch products");
+      try {
+        const params = new URLSearchParams({
+          page: pageNum.toString(),
+          limit: PAGE_LIMIT.toString(),
+        });
+
+        if (searchQuery) {
+          params.append("q", searchQuery);
+        }
+
+        if (selectedCategory) {
+          params.append("category", selectedCategory);
+        }
+
+        if (minPrice !== null) {
+          params.append("minPrice", minPrice.toString());
+        }
+
+        if (maxPrice !== null) {
+          params.append("maxPrice", maxPrice.toString());
+        }
+
+        if (sortBy) {
+          params.append("sortBy", sortBy);
+        }
+
+        const response = await fetch(`/products?${params.toString()}`);
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch products");
+        }
+
+        const data = await response.json();
+
+        setProducts((prev) =>
+          pageNum === 0 ? data.products : [...prev, ...data.products],
+        );
+        setHasMore(data.hasMore);
+        setPage(pageNum);
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "Failed to load products",
+        );
+      } finally {
+        setLoading(false);
+        loadingRef.current = false;
       }
-
-      const data = await response.json();
-
-      setProducts((prev) =>
-        pageNum === 0 ? data.products : [...prev, ...data.products],
-      );
-      setHasMore(data.hasMore);
-      setPage(pageNum);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load products");
-    } finally {
-      setLoading(false);
-      loadingRef.current = false;
-    }
-  }, []);
+    },
+    [searchQuery, selectedCategory, minPrice, maxPrice, sortBy],
+  );
 
   useEffect(() => {
+    setProducts([]);
+    setPage(0);
+    setHasMore(true);
     loadProducts(0);
-  }, [loadProducts]);
+  }, [searchQuery, selectedCategory, minPrice, maxPrice, sortBy, loadProducts]);
 
   const endReached = useCallback(() => {
     if (!loading && hasMore && !loadingRef.current) {
@@ -97,8 +151,6 @@ export const Products = ({
       endReached();
     }
   }, [endReached]);
-
-  //so i did just infinite scroll ig its good enough and since its last day i am gonna try to do rest of the challenges today.
 
   function addToCart(productId: number, quantity: number) {
     setProducts(
@@ -159,28 +211,189 @@ export const Products = ({
         ref={scrollRef}
         onScroll={onScroll}
       >
-        <Grid container spacing={2} p={2} justifyContent="center" height="100%">
-          {error && products.length === 0 && (
-            <Box p={4}>
-              <Alert
-                severity="error"
-                onClose={() => {
-                  setError(null);
-                  loadProducts(0);
-                }}
+        <Grid container justifyContent="center" p={2} spacing={2}>
+          {hasActiveFilters() && (
+            <Grid item xs={12}>
+              <Box
+                display="flex"
+                alignItems="center"
+                gap={1}
+                bgcolor="background.paper"
+                borderRadius={1}
               >
-                {error}
-              </Alert>
-            </Box>
+                <Typography variant="body2" fontWeight="bold">
+                  Active Filters:
+                </Typography>
+
+                {searchQuery && (
+                  <Chip
+                    label={`Search: "${searchQuery}"`}
+                    onDelete={() => setSearchQuery("")}
+                    size="small"
+                    color="primary"
+                    variant="outlined"
+                  />
+                )}
+
+                {selectedCategory && (
+                  <Chip
+                    label={`Category: ${selectedCategory}`}
+                    onDelete={() => setSelectedCategory(null)}
+                    size="small"
+                    color="primary"
+                    variant="outlined"
+                  />
+                )}
+
+                {minPrice !== null && (
+                  <Chip
+                    label={`Min: $${minPrice}`}
+                    onDelete={() => setMinPrice(null)}
+                    size="small"
+                    color="primary"
+                    variant="outlined"
+                  />
+                )}
+
+                {maxPrice !== null && (
+                  <Chip
+                    label={`Max: $${maxPrice}`}
+                    onDelete={() => setMaxPrice(null)}
+                    size="small"
+                    color="primary"
+                    variant="outlined"
+                  />
+                )}
+
+                {sortBy && (
+                  <Chip
+                    label={`Sort: ${sortBy.replace(/_/g, " ")}`}
+                    onDelete={() => setSortBy(null)}
+                    size="small"
+                    color="primary"
+                    variant="outlined"
+                  />
+                )}
+
+                <Button
+                  size="small"
+                  onClick={clearFilters}
+                  startIcon={<CloseIcon />}
+                  sx={{ ml: "auto" }}
+                >
+                  Clear All
+                </Button>
+              </Box>
+            </Grid>
           )}
+
+          <Grid item xs={12}>
+            <Box
+              display="flex"
+              justifyContent="space-between"
+              alignItems="center"
+            >
+              <Box display="flex" gap={2} alignItems="center">
+                <Typography variant="body2">Price Range:</Typography>
+
+                <TextField
+                  type="number"
+                  placeholder="Min"
+                  size="small"
+                  value={minPrice ?? ""}
+                  onChange={(e) =>
+                    setMinPrice(e.target.value ? Number(e.target.value) : null)
+                  }
+                  InputProps={{
+                    startAdornment: <Typography sx={{ mr: 0.5 }}>$</Typography>,
+                  }}
+                  sx={{ width: 120 }}
+                />
+
+                <Typography variant="body2">to</Typography>
+
+                <TextField
+                  type="number"
+                  placeholder="Max"
+                  size="small"
+                  value={maxPrice ?? ""}
+                  onChange={(e) =>
+                    setMaxPrice(e.target.value ? Number(e.target.value) : null)
+                  }
+                  InputProps={{
+                    startAdornment: <Typography sx={{ mr: 0.5 }}>$</Typography>,
+                  }}
+                  sx={{ width: 120 }}
+                />
+              </Box>
+              <Box display="flex" gap={2} alignItems="center">
+                <Box display="flex" alignItems="center" gap={1}>
+                  <Typography variant="body2">Sort by:</Typography>
+                  <FormControl size="small" sx={{ minWidth: 180 }}>
+                    <Select
+                      value={sortBy || ""}
+                      onChange={(e) => setSortBy(e.target.value || null)}
+                      displayEmpty
+                    >
+                      <MenuItem value="">
+                        <em>Default</em>
+                      </MenuItem>
+                      <MenuItem value="price_asc">Price: Low → High</MenuItem>
+                      <MenuItem value="price_desc">Price: High → Low</MenuItem>
+                      <MenuItem value="name_asc">Name: A → Z</MenuItem>
+                      <MenuItem value="name_desc">Name: Z → A</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Box>
+                <Typography variant="body2" color="text.secondary">
+                  Showing {products.length} results
+                </Typography>
+              </Box>
+            </Box>
+          </Grid>
+
+          {error && products.length === 0 && (
+            <Grid item xs={12}>
+              <Box p={4}>
+                <Alert
+                  severity="error"
+                  onClose={() => {
+                    setError(null);
+                    loadProducts(0);
+                  }}
+                >
+                  {error}
+                </Alert>
+              </Box>
+            </Grid>
+          )}
+
           {loading && products.length === 0 ? (
-            // added some cases loading state etc. still need to make 1st challenge to make products load as person scroll.
             <Loading />
           ) : products.length === 0 ? (
-            <Typography variant="h6">No products found</Typography>
+            <Grid item xs={12}>
+              <Box
+                display="flex"
+                flexDirection="column"
+                alignItems="center"
+                p={4}
+              >
+                <Typography variant="h6" gutterBottom>
+                  No products found
+                </Typography>
+                {hasActiveFilters() && (
+                  <Button
+                    onClick={clearFilters}
+                    variant="outlined"
+                    sx={{ mt: 2 }}
+                  >
+                    Clear Filters
+                  </Button>
+                )}
+              </Box>
+            </Grid>
           ) : (
             products.map((product) => (
-              // fixed key error by adding key prop to Grid and put all components in components directory.
               <Grid key={product.id} item xs={4}>
                 {/* Do not remove this */}
                 <HeavyComponent />
@@ -246,6 +459,7 @@ export const Products = ({
               </Grid>
             ))
           )}
+
           {loading && products.length > 0 && (
             <Grid item xs={12}>
               <Box display="flex" justifyContent="center" p={4}>
@@ -253,6 +467,7 @@ export const Products = ({
               </Box>
             </Grid>
           )}
+
           {!hasMore && products.length > 0 && !loading && (
             <Grid item xs={12}>
               <Box display="flex" justifyContent="center" p={4}>
