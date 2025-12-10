@@ -1,3 +1,9 @@
 body {
     margin: 0;
 }
+
+.virtuoso-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+}

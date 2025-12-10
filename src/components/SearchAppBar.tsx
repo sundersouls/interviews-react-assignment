@@ -8,7 +8,7 @@ import SearchIcon from "@mui/icons-material/Search";
 import { Badge } from "@mui/material";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import { useState, useEffect, useRef } from "react";
-import { useFilterStore } from "../store/filterStore";
+import { useFilterStore, useCartStore } from "../store/filterStore";
 
 const Search = styled("div")(({ theme }) => ({
   position: "relative",
@@ -53,16 +53,13 @@ const StyledInputBase = styled(InputBase)(({ theme }) => ({
   },
 }));
 
-export default function SearchAppBar({
-  quantity,
-  price,
-}: {
-  quantity: number;
-  price: number;
-}) {
+export default function SearchAppBar() {
   const { searchQuery, setSearchQuery } = useFilterStore();
+  const { getCart } = useCartStore();
   const [localSearch, setLocalSearch] = useState(searchQuery);
   const debounceTimeoutRef = useRef<number | null>(null);
+
+  const cart = getCart();
 
   useEffect(() => {
     setLocalSearch(searchQuery);
@@ -117,10 +114,10 @@ export default function SearchAppBar({
               Total:
             </Typography>
             <Typography variant="h6" noWrap component="div">
-              $ {(price || 0).toFixed(2)}
+              $ {(cart.totalPrice || 0).toFixed(2)}
             </Typography>
           </Box>
-          <Badge badgeContent={quantity || 0} color="secondary">
+          <Badge badgeContent={cart.totalItems || 0} color="secondary">
             <ShoppingCartIcon />
           </Badge>
         </Toolbar>

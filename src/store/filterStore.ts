@@ -7,7 +7,6 @@ interface FilterState {
   minPrice: number | null;
   maxPrice: number | null;
   sortBy: string | null;
-
   setSearchQuery: (query: string) => void;
   setMinPrice: (price: number | null) => void;
   setMaxPrice: (price: number | null) => void;
@@ -15,6 +14,33 @@ interface FilterState {
   setSelectedCategory: (category: string | null) => void;
   clearFilters: () => void;
   hasActiveFilters: () => boolean;
+}
+
+export type CartProduct = {
+  product: {
+    id: number;
+    name: string;
+    imageUrl: string;
+    price: number;
+    category: string;
+  };
+  quantity: number;
+};
+
+export type Cart = {
+  items: CartProduct[];
+  totalPrice: number;
+  totalItems: number;
+};
+
+interface CartState {
+  cart: Cart;
+
+  setCart: (cart: Cart) => void;
+  addOptimistic: (product: CartProduct["product"], quantity: number) => void;
+  removeOptimistic: (product: CartProduct["product"], quantity: number) => void;
+  getCart: () => Cart;
+  clearCart: () => void;
 }
 
 const initializeFiltersFromURL = (): Pick<
@@ -36,6 +62,75 @@ const initializeFiltersFromURL = (): Pick<
     sortBy: sortBy ?? null,
   };
 };
+
+export const useCartStore = create<CartState>((set, get) => ({
+  cart: {
+    items: [],
+    totalPrice: 0,
+    totalItems: 0,
+  },
+
+  setCart: (cart) => set({ cart }),
+
+  getCart: () => get().cart,
+
+  addOptimistic: (product, quantity) => {
+    const { cart } = get();
+
+    const existing = cart.items.find((i) => i.product.id === product.id);
+
+    let newItems;
+
+    if (existing) {
+      newItems = cart.items.map((i) =>
+        i.product.id === product.id
+          ? { ...i, quantity: i.quantity + quantity }
+          : i,
+      );
+    } else {
+      newItems = [...cart.items, { product, quantity }];
+    }
+
+    set({
+      cart: {
+        items: newItems,
+        totalItems: cart.totalItems + quantity,
+        totalPrice: cart.totalPrice + product.price * quantity,
+      },
+    });
+  },
+
+  removeOptimistic: (product, quantity) => {
+    const { cart } = get();
+
+    const existing = cart.items.find((i) => i.product.id === product.id);
+
+    let newItems;
+
+    if (existing) {
+      newItems = cart.items.map((i) =>
+        i.product.id === product.id
+          ? { ...i, quantity: i.quantity - quantity }
+          : i,
+      );
+    } else {
+      newItems = [...cart.items, { product, quantity: -quantity }];
+    }
+
+    set({
+      cart: {
+        items: newItems,
+        totalItems: cart.totalItems - quantity,
+        totalPrice: cart.totalPrice - product.price * quantity,
+      },
+    });
+  },
+
+  clearCart: () =>
+    set({
+      cart: { items: [], totalItems: 0, totalPrice: 0 },
+    }),
+}));
 
 export const useFilterStore = create<FilterState>()(
   persist(

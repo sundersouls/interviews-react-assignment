@@ -1,10 +1,12 @@
 import { useEffect, useState, useRef, useCallback, memo } from "react";
+import React from "react";
 import {
   Box,
   Card,
   CardActions,
   CardContent,
   CardMedia,
+  Grid,
   IconButton,
   Typography,
   CircularProgress,
@@ -21,9 +23,8 @@ import AddIcon from "@mui/icons-material/Add";
 import CloseIcon from "@mui/icons-material/Close";
 import Loading from "./Loading.tsx";
 import { HeavyComponent } from "./HeavyComponent.tsx";
-import { useFilterStore, useCartStore } from "../store/filterStore";
+import { useFilterStore } from "../store/filterStore";
 import { VirtuosoGrid } from "react-virtuoso";
-// so figured out to use virtuoso for virtualization and changed all the old Grid things into Boxes. was having some error in console but it dissapeared but itself as i go.
 
 export type Product = {
   id: number;
@@ -43,7 +44,11 @@ export type Cart = {
 
 const PAGE_LIMIT = 20;
 
-export const Products = () => {
+export const Products = ({
+  onCartChange,
+}: {
+  onCartChange: (cart: Cart) => void;
+}) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,8 +70,6 @@ export const Products = () => {
     clearFilters,
     hasActiveFilters,
   } = useFilterStore();
-
-  const { addOptimistic, removeOptimistic, setCart } = useCartStore();
 
   const loadProducts = useCallback(
     async (pageNum: number) => {
@@ -141,46 +144,41 @@ export const Products = () => {
   }, [loading, hasMore, page, loadProducts]);
 
   function addToCart(productId: number, quantity: number) {
-    const product = products.find((p) => p.id === productId);
-    if (!product) return;
-    setProducts((prev) =>
-      prev.map((product) =>
-        product.id === productId
-          ? {
-              ...product,
-              itemInCart: (product.itemInCart || 0) + quantity,
-            }
-          : product,
-      ),
-    ); // so in the end its a bit sluggish i coud figure out how to do it more properly and how to correctly compare optimized cart and response from backend api. but it seem to be not worth it. ig i need just to show that i can do it
-    addOptimistic(product, quantity);
+    setProducts(
+      products.map((product) => {
+        if (product.id === productId) {
+          return {
+            ...product,
+            loading: true,
+          };
+        }
+        return product;
+      }),
+    );
     fetch("/cart", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ productId, quantity }),
-    })
-      .then(async (res) => {
-        if (!res.ok) throw new Error("Cart request failed");
-        const serverCart = await res.json();
-        if (serverCart?.items) {
-          setCart(serverCart);
-        }
-      })
-      .catch(() => {
-        setProducts((prev) =>
-          prev.map((product) =>
-            product.id === productId
-              ? {
-                  ...product,
-                  itemInCart: (product.itemInCart || 0) - quantity,
-                }
-              : product,
-          ),
+    }).then(async (response) => {
+      if (response.ok) {
+        const cart = await response.json();
+        setProducts(
+          products.map((product) => {
+            if (product.id === productId) {
+              return {
+                ...product,
+                itemInCart: (product.itemInCart || 0) + quantity,
+                loading: false,
+              };
+            }
+            return product;
+          }),
         );
-        removeOptimistic(product, quantity);
-      });
+        onCartChange(cart);
+      }
+    });
   }
 
   const ProductCard = memo(
@@ -191,12 +189,11 @@ export const Products = () => {
       product: Product;
       onAddToCart: (id: number, qty: number) => void;
     }) => {
-      // with this its rerender is seems to be optimal. idk how i will do virtual list tho i dont have much time left. ig i will try to speedrun it by ai tho i am not sure how to properly to implement it. Also coud done 4 challenge it is seems to be easier. But again i have no tiime. I wasnt in right place to do it in meantime while i had some time.
       return (
         <Box p={1}>
           {/* Do not remove this */}
           <HeavyComponent />
-          <Card style={{ width: "100%" }}>
+          <Card style={{ width: "100%", height: "100%" }}>
             <CardMedia component="img" height="150" image={product.imageUrl} />
             <CardContent>
               <Typography gutterBottom variant="h6" component="div">
@@ -274,6 +271,7 @@ export const Products = () => {
         minHeight: 0,
       }}
     >
+      {/* Fixed Filters Header */}
       <Box p={2}>
         {hasActiveFilters() && (
           <Box
@@ -409,6 +407,7 @@ export const Products = () => {
         </Box>
       </Box>
 
+      {/* Scrollable Content Area */}
       <Box style={{ flexGrow: 1, minHeight: 0, position: "relative" }}>
         {error && products.length === 0 && (
           <Box p={4}>
@@ -439,10 +438,33 @@ export const Products = () => {
           </Box>
         ) : (
           <VirtuosoGrid
-            data={products}
+            style={{ height: "100%" }}
+            totalCount={products.length}
             endReached={endReached}
             overscan={200}
-            listClassName="virtuoso-grid"
+            components={{
+              List: React.forwardRef(({ style, children, ...props }, ref) => (
+                <Grid
+                  ref={ref}
+                  container
+                  spacing={2}
+                  style={{
+                    ...style,
+                    margin: 0,
+                    width: "100%",
+                    padding: "0 16px 16px 16px",
+                  }}
+                  {...props}
+                >
+                  {children}
+                </Grid>
+              )),
+              Item: ({ children, ...props }) => (
+                <Grid item xs={12} sm={6} md={4} {...props}>
+                  {children}
+                </Grid>
+              ),
+            }}
             itemContent={(index) => (
               <ProductCard product={products[index]} onAddToCart={addToCart} />
             )}
