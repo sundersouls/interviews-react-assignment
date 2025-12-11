@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback, memo } from "react";
+import { useEffect, useState, useRef, useCallback, memo, useMemo } from "react";
 import {
   Box,
   Card,
@@ -23,7 +23,6 @@ import Loading from "./Loading.tsx";
 import { HeavyComponent } from "./HeavyComponent.tsx";
 import { useFilterStore, useCartStore } from "../store/filterStore";
 import { VirtuosoGrid } from "react-virtuoso";
-// so figured out to use virtuoso for virtualization and changed all the old Grid things into Boxes. was having some error in console but it dissapeared but itself as i go.
 
 export type Product = {
   id: number;
@@ -31,8 +30,6 @@ export type Product = {
   imageUrl: string;
   price: number;
   category: string;
-  itemInCart: number;
-  loading: boolean;
 };
 
 export type Cart = {
@@ -66,7 +63,18 @@ export const Products = () => {
     hasActiveFilters,
   } = useFilterStore();
 
-  const { addOptimistic, removeOptimistic, setCart } = useCartStore();
+  const addOptimistic = useCartStore((s) => s.addOptimistic);
+  const removeOptimistic = useCartStore((s) => s.removeOptimistic);
+  const setCart = useCartStore((s) => s.setCart);
+  const cart = useCartStore((s) => s.cart);
+
+  const cartQuantities = useMemo(() => {
+    const map = new Map<number, number>();
+    cart.items.forEach((item) => {
+      map.set(item.product.id, item.quantity);
+    });
+    return map;
+  }, [cart.items]);
 
   const loadProducts = useCallback(
     async (pageNum: number) => {
@@ -143,16 +151,6 @@ export const Products = () => {
   function addToCart(productId: number, quantity: number) {
     const product = products.find((p) => p.id === productId);
     if (!product) return;
-    setProducts((prev) =>
-      prev.map((product) =>
-        product.id === productId
-          ? {
-              ...product,
-              itemInCart: (product.itemInCart || 0) + quantity,
-            }
-          : product,
-      ),
-    ); // so in the end its a bit sluggish i coud figure out how to do it more properly and how to correctly compare optimized cart and response from backend api. but it seem to be not worth it. ig i need just to show that i can do it
     addOptimistic(product, quantity);
     fetch("/cart", {
       method: "POST",
@@ -164,21 +162,13 @@ export const Products = () => {
       .then(async (res) => {
         if (!res.ok) throw new Error("Cart request failed");
         const serverCart = await res.json();
-        if (serverCart?.items) {
-          setCart(serverCart);
-        }
+        setTimeout(() => {
+          if (serverCart?.items && serverCart?.items !== cart) {
+            setCart(serverCart);
+          }
+        }, 5000);
       })
       .catch(() => {
-        setProducts((prev) =>
-          prev.map((product) =>
-            product.id === productId
-              ? {
-                  ...product,
-                  itemInCart: (product.itemInCart || 0) - quantity,
-                }
-              : product,
-          ),
-        );
         removeOptimistic(product, quantity);
       });
   }
@@ -186,12 +176,13 @@ export const Products = () => {
   const ProductCard = memo(
     ({
       product,
+      itemInCart,
       onAddToCart,
     }: {
       product: Product;
+      itemInCart: number;
       onAddToCart: (id: number, qty: number) => void;
     }) => {
-      // with this its rerender is seems to be optimal. idk how i will do virtual list tho i dont have much time left. ig i will try to speedrun it by ai tho i am not sure how to properly to implement it. Also coud done 4 challenge it is seems to be easier. But again i have no tiime. I wasnt in right place to do it in meantime while i had some time.
       return (
         <Box p={1}>
           {/* Do not remove this */}
@@ -217,31 +208,20 @@ export const Products = () => {
                 flexDirection="row"
                 alignItems="center"
               >
-                <Box
-                  position="absolute"
-                  left={0}
-                  right={0}
-                  top={0}
-                  bottom={0}
-                  textAlign="center"
-                >
-                  {product.loading && <CircularProgress size={20} />}
-                </Box>
                 <IconButton
-                  disabled={product.loading}
-                  aria-label="delete"
+                  aria-label="remove"
                   size="small"
                   onClick={() => onAddToCart(product.id, -1)}
+                  disabled={itemInCart === 0}
                 >
                   <RemoveIcon fontSize="small" />
                 </IconButton>
 
                 <Typography variant="body1" component="div" mx={1}>
-                  {product.itemInCart || 0}
+                  {itemInCart}
                 </Typography>
 
                 <IconButton
-                  disabled={product.loading}
                   aria-label="add"
                   size="small"
                   onClick={() => onAddToCart(product.id, 1)}
@@ -257,8 +237,7 @@ export const Products = () => {
     (prevProps, nextProps) => {
       return (
         prevProps.product.id === nextProps.product.id &&
-        prevProps.product.itemInCart === nextProps.product.itemInCart &&
-        prevProps.product.loading === nextProps.product.loading
+        prevProps.itemInCart === nextProps.itemInCart
       );
     },
   );
@@ -444,7 +423,11 @@ export const Products = () => {
             overscan={200}
             listClassName="virtuoso-grid"
             itemContent={(index) => (
-              <ProductCard product={products[index]} onAddToCart={addToCart} />
+              <ProductCard
+                product={products[index]}
+                itemInCart={cartQuantities.get(products[index].id) || 0}
+                onAddToCart={addToCart}
+              />
             )}
           />
         )}

@@ -138,6 +138,15 @@ export const handlers = [
       return computeCart();
     },
   ),
+  http.post<never, { productId: number }>(
+    "/cart-remove",
+    async ({ request }) => {
+      await delay(1000);
+      const { productId } = await request.json();
+      cart[productId] = 0;
+      return computeCart(); // i just realized here is no reduce cart items and others sad
+    },
+  ),
   http.get("/cart", async () => {
     await delay();
     return HttpResponse.json(computeCart());

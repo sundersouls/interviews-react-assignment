@@ -7,6 +7,8 @@ import InputBase from "@mui/material/InputBase";
 import SearchIcon from "@mui/icons-material/Search";
 import { Badge } from "@mui/material";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
+import IconButton from "@mui/material/IconButton";
+import CheckoutModal from "./CheckoutModal";
 import { useState, useEffect, useRef } from "react";
 import { useFilterStore, useCartStore } from "../store/filterStore";
 
@@ -56,6 +58,7 @@ const StyledInputBase = styled(InputBase)(({ theme }) => ({
 export default function SearchAppBar() {
   const { searchQuery, setSearchQuery } = useFilterStore();
   const { getCart } = useCartStore();
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [localSearch, setLocalSearch] = useState(searchQuery);
   const debounceTimeoutRef = useRef<number | null>(null);
 
@@ -88,6 +91,10 @@ export default function SearchAppBar() {
 
   return (
     <Box>
+      <CheckoutModal
+        open={checkoutOpen}
+        onClose={() => setCheckoutOpen(false)}
+      />
       <AppBar position="relative">
         <Toolbar>
           <Typography
@@ -117,9 +124,11 @@ export default function SearchAppBar() {
               $ {(cart.totalPrice || 0).toFixed(2)}
             </Typography>
           </Box>
-          <Badge badgeContent={cart.totalItems || 0} color="secondary">
-            <ShoppingCartIcon />
-          </Badge>
+          <IconButton onClick={() => setCheckoutOpen(true)}>
+            <Badge badgeContent={cart.totalItems || 0} color="secondary">
+              <ShoppingCartIcon />
+            </Badge>
+          </IconButton>
         </Toolbar>
       </AppBar>
     </Box>

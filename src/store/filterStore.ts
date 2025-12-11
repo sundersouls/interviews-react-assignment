@@ -39,6 +39,8 @@ interface CartState {
   setCart: (cart: Cart) => void;
   addOptimistic: (product: CartProduct["product"], quantity: number) => void;
   removeOptimistic: (product: CartProduct["product"], quantity: number) => void;
+  updateQuantity: (productId: number, newQuantity: number) => void;
+  removeItem: (productId: number) => void;
   getCart: () => Cart;
   clearCart: () => void;
 }
@@ -91,6 +93,9 @@ export const useCartStore = create<CartState>((set, get) => ({
       newItems = [...cart.items, { product, quantity }];
     }
 
+    // Filter out items with quantity <= 0
+    newItems = newItems.filter((item) => item.quantity > 0);
+
     set({
       cart: {
         items: newItems,
@@ -117,6 +122,8 @@ export const useCartStore = create<CartState>((set, get) => ({
       newItems = [...cart.items, { product, quantity: -quantity }];
     }
 
+    newItems = newItems.filter((item) => item.quantity > 0);
+
     set({
       cart: {
         items: newItems,
@@ -124,6 +131,46 @@ export const useCartStore = create<CartState>((set, get) => ({
         totalPrice: cart.totalPrice - product.price * quantity,
       },
     });
+  },
+
+  updateQuantity: (productId, newQuantity) => {
+    const { cart } = get();
+
+    if (newQuantity < 1) {
+      get().removeItem(productId);
+      return;
+    }
+
+    const newItems = cart.items.map((item) =>
+      item.product.id === productId ? { ...item, quantity: newQuantity } : item,
+    );
+
+    const newCart = {
+      items: newItems,
+      totalItems: newItems.reduce((sum, item) => sum + item.quantity, 0),
+      totalPrice: newItems.reduce(
+        (sum, item) => sum + item.product.price * item.quantity,
+        0,
+      ),
+    };
+
+    set({ cart: newCart });
+  },
+
+  removeItem: (productId) => {
+    const { cart } = get();
+    const newItems = cart.items.filter((item) => item.product.id !== productId);
+
+    const newCart = {
+      items: newItems,
+      totalItems: newItems.reduce((sum, item) => sum + item.quantity, 0),
+      totalPrice: newItems.reduce(
+        (sum, item) => sum + item.product.price * item.quantity,
+        0,
+      ),
+    };
+
+    set({ cart: newCart });
   },
 
   clearCart: () =>
